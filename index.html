@@ -20,6 +20,16 @@ main{max-width:720px;margin:0 auto;padding:8px 16px 48px}
 h2.sec{font-size:15px;color:var(--sub);margin:30px 0 10px;letter-spacing:.04em}
 .card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin:10px 0;color:inherit;text-decoration:none;font-weight:700;line-height:1.5}
 .card span{flex:1}
+.row{display:flex;align-items:stretch;gap:8px;margin:10px 0}
+.row .card{flex:1;margin:0}
+.chk{flex:none;width:52px;border:2px solid var(--line);background:#fff;border-radius:12px;color:transparent;font-size:24px;font-weight:800;font-family:inherit;padding:0}
+.row.done .chk{background:#2e7d32;border-color:#2e7d32;color:#fff}
+.row.done .card{background:#ecebe6;color:#8a857b}
+.prog{margin-top:6px;font-size:14px;color:#cfcac0}
+.badge[hidden]{display:none}
+.badge{display:inline-block;margin:18px 0 -6px;background:#2e7d32;color:#fff;font-weight:700;font-size:13px;padding:4px 10px;border-radius:999px}
+.donebtn{display:block;width:100%;margin:40px 0 8px;padding:16px;border:2px solid #2e7d32;border-radius:12px;background:#fff;color:#2e7d32;font-size:17px;font-weight:800;font-family:inherit}
+.donebtn.on{background:#2e7d32;color:#fff}
 .card i{font-style:normal;color:#b5afa3;font-size:24px;line-height:1}
 .page h1{font-size:22px;line-height:1.45;margin:20px 0 20px;padding-bottom:12px;border-bottom:3px solid var(--ink)}
 .page h3{font-size:18px;line-height:1.5;margin:40px 0 14px;padding-left:10px;border-left:5px solid var(--acc)}
@@ -70,13 +80,22 @@ async function dec(path){const buf=new Uint8Array(await (await fetch('d/'+path))
   return crypto.subtle.decrypt({name:'AES-GCM',iv:buf.slice(0,12)},KEY,buf.slice(12))}
 async function unlock(key){KEY=key;DATA=JSON.parse(new TextDecoder().decode(await dec('pages.bin')))}
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function render(){const app=document.getElementById('app');const m=location.hash.match(/^#p(\d+)$/);
+function getDone(){try{return new Set(JSON.parse(localStorage.getItem('done')||'[]'))}catch(e){return new Set()}}
+function toggleDone(t){const d=getDone();d.has(t)?d.delete(t):d.add(t);try{localStorage.setItem('done',JSON.stringify([...d]))}catch(e){}
+  if(location.hash.startsWith('#p'))paintPage(d.has(t));else render(true)}
+function paintPage(d){const b=document.querySelector('.donebtn'),g=document.querySelector('.badge');
+  b.classList.toggle('on',d);b.textContent=d?'✓ 撮影完了（タップで取り消し）':'撮影完了にする';g.hidden=!d}
+function render(keep){const app=document.getElementById('app');const m=location.hash.match(/^#p(\d+)$/);const done=getDone();const y0=scrollY;
   if(m){const all=DATA.secs.flatMap(s=>s.pages);const p=all[+m[1]];if(p){document.title=p.title;
-    app.innerHTML='<div class="bar"><a href="#">← 一覧</a></div><main class="page"><h1>'+esc(p.title)+'</h1>'+p.html+'</main>';
-    window.scrollTo(0,0);loadMedia(app);return}}
-  document.title=DATA.title;let n=0,h='<header><h1>'+esc(DATA.title)+'</h1></header><main>';
-  for(const s of DATA.secs){h+='<h2 class="sec">'+esc(s.name)+'</h2>';for(const p of s.pages){h+='<a class="card" href="#p'+(n++)+'"><span>'+esc(p.title)+'</span><i>›</i></a>'}}
-  app.innerHTML=h+'</main>';const y=sessionStorage.getItem('y');if(y)window.scrollTo(0,+y)}
+    app.innerHTML='<div class="bar"><a href="#">← 一覧</a></div><main class="page"><div class="badge">✓ 撮影完了</div><h1>'+esc(p.title)+'</h1>'+p.html+
+      '<button class="donebtn" data-t="'+esc(p.title)+'"></button></main>';
+    paintPage(done.has(p.title));bindDone(app);window.scrollTo(0,0);loadMedia(app);return}}
+  document.title=DATA.title;let n=0,total=0,cnt=0,h='';
+  for(const s of DATA.secs){h+='<h2 class="sec">'+esc(s.name)+'</h2>';for(const p of s.pages){total++;const d=done.has(p.title);if(d)cnt++;
+    h+='<div class="row'+(d?' done':'')+'"><button class="chk" data-t="'+esc(p.title)+'" aria-label="撮影完了">✓</button><a class="card" href="#p'+(n++)+'"><span>'+esc(p.title)+'</span><i>›</i></a></div>'}}
+  app.innerHTML='<header><h1>'+esc(DATA.title)+'</h1><div class="prog">撮影完了 '+cnt+' / '+total+'</div></header><main>'+h+'</main>';
+  bindDone(app);if(keep)window.scrollTo(0,y0);else{const y=sessionStorage.getItem('y');if(y)window.scrollTo(0,+y)}}
+function bindDone(root){root.querySelectorAll('[data-t]').forEach(b=>b.onclick=e=>{e.preventDefault();toggleDone(b.dataset.t)})}
 async function loadMedia(root){for(const el of root.querySelectorAll('[data-enc]')){const n=el.dataset.enc;
   try{if(!urls[n])urls[n]=URL.createObjectURL(new Blob([await dec(n)],{type:el.dataset.type}));if(!el.isConnected)return;el.src=urls[n]}catch(e){}}}
 addEventListener('hashchange',()=>{if(DATA)render()});
